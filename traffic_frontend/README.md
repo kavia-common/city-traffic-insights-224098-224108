@@ -85,10 +85,14 @@ This app is a standard Create React App build.
 3. Build command: `npm run build`
 4. Output directory: `build`
 5. Environment variables (Project Settings -> Environment Variables):
-   - REACT_APP_API_BASE: set to your backend URL, e.g. https://your-backend.example.com
+   - REACT_APP_API_BASE = https://your-backend.onrender.com (or Railway URL)
+   - Optional: REACT_APP_BACKEND_URL as a fallback
 6. Redeploy. The frontend will call the backend using REACT_APP_API_BASE.
 
-Note: For local previews, use Preview Environment Variables in Vercel as well.
+CORS note:
+- Ensure the backend sets REACT_APP_FRONTEND_URL to your Vercel URL (e.g., https://your-project.vercel.app) so CORS allows browser requests.
+
+Note: For local previews, set Preview Environment Variables in Vercel as well.
 
 ### Deploy to Render or Railway
 

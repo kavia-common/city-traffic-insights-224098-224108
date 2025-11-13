@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { fetchLiveTraffic } from '../services/api';
+import { fetchLive } from '../services/api';
 
 // Helper to map city to center coordinates
 const CITY_CENTERS = {
@@ -35,7 +35,7 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
 
     const load = async () => {
       try {
-        const data = await fetchLiveTraffic(city, { signal: controller.signal }); // pass abort signal
+        const data = await fetchLive(city, { signal: controller.signal }); // pass abort signal
         if (!mounted) return;
         setLive(data || { segments: [], incidents: [] });
         setError('');
@@ -70,7 +70,7 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
     const loadNow = async () => {
       try {
         setLoading(true);
-        const data = await fetchLiveTraffic(city, { signal: controller.signal });
+        const data = await fetchLive(city, { signal: controller.signal });
         if (!mounted) return;
         setLive(data || { segments: [], incidents: [] });
         setError('');

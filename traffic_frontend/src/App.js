@@ -3,7 +3,7 @@ import './App.css';
 import './theme.css';
 import MapView from './components/MapView';
 import Analytics from './components/Analytics';
-import { getApiBaseUrl } from './services/api';
+import { getApiBase } from './services/api';
 
 // PUBLIC_INTERFACE
 function App() {
@@ -25,7 +25,7 @@ function App() {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
-  const apiBase = getApiBaseUrl();
+  const apiBase = getApiBase();
 
   // Smooth enter animation on tab change; keep height stable to avoid layout shift
   const [entered, setEntered] = useState(false);

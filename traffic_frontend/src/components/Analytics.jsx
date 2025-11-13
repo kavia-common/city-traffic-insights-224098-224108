@@ -1,195 +1,145 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { fetchHistory, fetchPredict } from '../services/api';
 import {
-  LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Legend, Area, AreaChart, Bar, BarChart,
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar, Legend,
 } from 'recharts';
-import { fetchTrafficHistory, fetchTrafficPrediction } from '../services/api';
 
 // PUBLIC_INTERFACE
-/**
- * Analytics view for historical and predicted congestion.
- * - History line/area chart (avg congestion over time)
- * - Prediction bar/line for short-term horizon
- * @param {{ city: "Bangalore" | "Mumbai" | "Delhi" }} props
- */
 export default function Analytics({ city = 'Bangalore' }) {
-  const [from, to] = useMemo(() => {
-    const end = new Date();
-    const start = new Date(end.getTime() - 1000 * 60 * 60); // last 60 minutes
-    return [start.toISOString(), end.toISOString()];
-  }, []);
-  const [history, setHistory] = useState([]);
-  const [pred, setPred] = useState([]);
-  const [error, setError] = useState('');
+  /** Analytics component: fetches history and predictions, renders charts with loading and theme support. */
+  const [historyPoints, setHistoryPoints] = useState([]);
+  const [predictSeries, setPredictSeries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const isDark = usePrefersDark();
 
   useEffect(() => {
     let mounted = true;
-    const controller = new AbortController();
-
-    const load = async () => {
+    setLoading(true);
+    setError('');
+    (async () => {
       try {
-        setLoading(true);
-        const [h, p] = await Promise.all([
-          fetchTrafficHistory(from, to, city, { signal: controller.signal }),
-          fetchTrafficPrediction(30, city, { signal: controller.signal }),
+        const [hist, pred] = await Promise.all([
+          fetchHistory({ city, format: 'points' }),
+          fetchPredict({ city, horizonMinutes: 30 }),
         ]);
-
         if (!mounted) return;
 
-        const historyPoints = Array.isArray(h?.points) ? h.points : [];
-        const predictionPoints = Array.isArray(p?.points) ? p.points : [];
-
-        // Convert 0..1 to percentage for display
-        setHistory(
-          historyPoints.map((pt) => ({
-            t: pt.t,
-            congestion: Math.round((pt.congestion ?? 0) * 100),
-          }))
-        );
-
-        setPred(
-          predictionPoints.map((pt) => ({
-            t: pt.t,
-            predicted: Math.round((pt.congestion ?? 0) * 100),
-          }))
-        );
-
-        setError('');
-        setLoading(false);
+        setHistoryPoints(hist?.points || []);
+        const series = (pred?.timeSeries || []).map(s => ({
+          id: s.id,
+          points: s.points || [],
+        }));
+        setPredictSeries(series);
       } catch (e) {
-        if (e.code === 'ABORTED') return;
-        setHistory([]);
-        setPred([]);
-        setError(e?.message || 'Failed to load analytics data');
-        setLoading(false);
+        if (!mounted) return;
+        setError(e.message || 'Failed to load analytics');
+      } finally {
+        if (mounted) setLoading(false);
       }
-    };
+    })();
+    return () => { mounted = false; };
+  }, [city]);
 
-    load();
-    return () => {
-      mounted = false;
-      controller.abort();
-    };
-  }, [from, to, city]);
+  const avgPredPoints = useMemo(() => {
+    // average congestion across segments for each timestamp
+    if (!predictSeries.length) return [];
+    const length = predictSeries[0].points.length;
+    const out = [];
+    for (let i = 0; i < length; i++) {
+      let sum = 0;
+      let n = 0;
+      let ts = '';
+      for (const s of predictSeries) {
+        const p = s.points[i];
+        if (p) {
+          sum += (p.congestion || 0);
+          n += 1;
+          ts = p.timestamp;
+        }
+      }
+      if (n > 0) {
+        out.push({ timestamp: ts, congestion: +(sum / n).toFixed(3) });
+      }
+    }
+    return out;
+  }, [predictSeries]);
 
-  const noData = history.length === 0 && pred.length === 0;
+  if (loading) {
+    return (
+      <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
+        <Spinner isDark={isDark} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div style={{ color: '#EF4444', padding: 12 }}>Error: {error}</div>;
+  }
+
+  const textColor = isDark ? '#e5e7eb' : '#111827';
+  const gridColor = isDark ? '#374151' : '#e5e7eb';
+  const surface = isDark ? '#111827' : '#ffffff';
 
   return (
-    <div className="analytics view-transition entered">
-      {error ? (
-        <div role="alert" style={{ color: '#EF4444', marginBottom: 12 }}>
-          {error}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+      <section style={{ background: surface, borderRadius: 12, padding: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
+        <h3 style={{ margin: '4px 0 12px', color: textColor }}>Last 60 minutes - Avg Congestion</h3>
+        <div style={{ width: '100%', height: 260 }}>
+          <ResponsiveContainer>
+            <LineChart data={historyPoints}>
+              <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
+              <XAxis dataKey="timestamp" hide />
+              <YAxis domain={[0, 1]} stroke={textColor} />
+              <Tooltip labelStyle={{ color: textColor }} />
+              <Legend />
+              <Line type="monotone" dataKey="congestion" name="Congestion" stroke="#2563EB" dot={false} strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-      ) : null}
+      </section>
 
-      <div className="card" style={{ padding: 16 }} aria-busy={loading ? 'true' : undefined}>
-        <h3 style={{ margin: '0 0 8px 0', color: '#2563EB' }}>Historical Congestion (Last 60 min) — {city}</h3>
-        <div style={{ height: 280, position: 'relative' }}>
-          {loading ? (
-            <div
-              role="status"
-              aria-live="polite"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'grid',
-                placeItems: 'center',
-                zIndex: 1,
-                background: 'rgba(255,255,255,0.6)',
-                borderRadius: 10
-              }}
-            >
-              <span className="spinner" aria-hidden="true" style={{ width: 16, height: 16, border: '2px solid rgba(0,0,0,0.2)', borderTopColor: 'var(--color-primary)', borderRadius: 999, animation: 'spin 0.8s linear infinite' }} />
-              <span style={{ marginLeft: 8 }}>Loading…</span>
-            </div>
-          ) : null}
-          {history.length === 0 && !loading ? (
-            <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#6B7280' }}>
-              No historical data.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={history}>
-                <defs>
-                  <linearGradient id="colorCong" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
-                <XAxis dataKey="t" tick={{ fontSize: 12 }} />
-                <YAxis unit="%" tick={{ fontSize: 12 }} domain={[0, 100]} />
-                <RTooltip />
-                <Area type="monotone" dataKey="congestion" stroke="#2563EB" fillOpacity={1} fill="url(#colorCong)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
+      <section style={{ background: surface, borderRadius: 12, padding: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
+        <h3 style={{ margin: '4px 0 12px', color: textColor }}>Next 30 minutes - Predicted Congestion</h3>
+        <div style={{ width: '100%', height: 260 }}>
+          <ResponsiveContainer>
+            <BarChart data={avgPredPoints}>
+              <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
+              <XAxis dataKey="timestamp" hide />
+              <YAxis domain={[0, 1]} stroke={textColor} />
+              <Tooltip labelStyle={{ color: textColor }} />
+              <Bar dataKey="congestion" name="Congestion" fill="#F59E0B" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      </div>
-
-      <div className="card" style={{ padding: 16, marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 8px 0', color: '#F59E0B' }}>Predicted Congestion (Next 30 min) — {city}</h3>
-        <div style={{ height: 260 }}>
-          {pred.length === 0 && !loading ? (
-            <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#6B7280' }}>
-              No prediction data.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={pred}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
-                <XAxis dataKey="t" tick={{ fontSize: 12 }} />
-                <YAxis unit="%" tick={{ fontSize: 12 }} domain={[0, 100]} />
-                <Legend />
-                <RTooltip />
-                <Bar dataKey="predicted" fill="#F59E0B" radius={[6,6,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      <div className="card" style={{ padding: 16, marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 8px 0' }}>Overlay: History vs Prediction — {city}</h3>
-        <div style={{ height: 260 }}>
-          {mergeByTime(history, pred).length === 0 && !loading ? (
-            <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#6B7280' }}>
-              Not enough data to overlay.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={mergeByTime(history, pred)}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
-                <XAxis dataKey="t" tick={{ fontSize: 12 }} />
-                <YAxis unit="%" tick={{ fontSize: 12 }} domain={[0, 100]} />
-                <Legend />
-                <RTooltip />
-                <Line type="monotone" dataKey="congestion" stroke="#2563EB" dot={false} />
-                <Line type="monotone" dataKey="predicted" stroke="#F59E0B" dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      {noData ? (
-        <div className="card" style={{ padding: 12, marginTop: 8, color: '#374151' }}>
-          No analytics data available for {city}. Try adjusting the time window or ensure backend data ingestion.
-        </div>
-      ) : null}
+      </section>
     </div>
   );
 }
 
-function mergeByTime(historyArr, predArr) {
-  const map = new Map();
-  historyArr.forEach((h) => {
-    map.set(h.t, { t: h.t, congestion: h.congestion });
-  });
-  predArr.forEach((p) => {
-    const existing = map.get(p.t) || { t: p.t };
-    existing.predicted = p.predicted;
-    map.set(p.t, existing);
-  });
-  return Array.from(map.values());
+function Spinner({ isDark }) {
+  const color = isDark ? '#F59E0B' : '#2563EB';
+  return (
+    <svg width="32" height="32" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
+      <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="4" fill="none" opacity="0.25" />
+      <path fill={color} d="M12 2a10 10 0 0 1 10 10h-4a6 6 0 0 0-6-6V2z" />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </svg>
+  );
+}
+
+function usePrefersDark() {
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (!m) return;
+    const handler = (e) => setIsDark(!!e.matches);
+    setIsDark(!!m.matches);
+    m.addEventListener ? m.addEventListener('change', handler) : m.addListener(handler);
+    return () => {
+      m.removeEventListener ? m.removeEventListener('change', handler) : m.removeListener(handler);
+    };
+  }, []);
+  return isDark;
 }

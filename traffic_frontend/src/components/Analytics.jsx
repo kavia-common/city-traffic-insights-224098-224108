@@ -59,7 +59,7 @@ export default function Analytics({ city = 'Bangalore' }) {
   const noData = history.length === 0 && pred.length === 0;
 
   return (
-    <div className="analytics">
+    <div className="analytics view-transition entered">
       {error ? (
         <div role="alert" style={{ color: '#EF4444', marginBottom: 12 }}>
           {error}

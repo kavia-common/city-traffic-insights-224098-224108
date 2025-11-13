@@ -18,9 +18,9 @@ const CITY_CENTERS = {
  * - incident points as circle markers
  *
  * Polls the backend every 5 seconds to simulate live updates and refreshes when city changes.
- * @param {{ city: "Bangalore" | "Mumbai" | "Delhi" }} props
+ * @param {{ city: "Bangalore" | "Mumbai" | "Delhi", refreshKey?: number }} props
  */
-export default function MapView({ city = 'Bangalore' }) {
+export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
   const [live, setLive] = useState({ segments: [], incidents: [] });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,6 +53,33 @@ export default function MapView({ city = 'Bangalore' }) {
       clearInterval(timer);
     };
   }, [city]);
+
+  // Immediate manual refresh when refreshKey changes
+  useEffect(() => {
+    let mounted = true;
+    const loadNow = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchLiveTraffic(city);
+        if (mounted) {
+          setLive(data || { segments: [], incidents: [] });
+          setError('');
+          setLoading(false);
+        }
+      } catch (e) {
+        if (mounted) {
+          setLive({ segments: [], incidents: [] });
+          setError('Failed to load live traffic');
+          setLoading(false);
+        }
+      }
+    };
+    // only run when refreshKey bumps
+    if (refreshKey >= 0) {
+      loadNow();
+    }
+    return () => { mounted = false; };
+  }, [refreshKey, city]);
 
   const segments = live?.segments || []; // normalized
   const incidents = live?.incidents || []; // normalized

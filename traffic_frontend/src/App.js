@@ -27,7 +27,7 @@ function App() {
 
   const apiBase = getApiBaseUrl();
 
-  // Smooth enter animation on tab change
+  // Smooth enter animation on tab change; keep height stable to avoid layout shift
   const [entered, setEntered] = useState(false);
   useEffect(() => {
     setEntered(false);
@@ -37,16 +37,19 @@ function App() {
 
   // PUBLIC_INTERFACE
   const triggerRefresh = () => {
-    // start animation and bump refreshKey; auto-stop spinner after 1.2s
+    // Start spinner animation and bump refreshKey; auto-stop spinner after 1.2s
     setRefreshing(true);
     setRefreshKey(k => k + 1);
-    setTimeout(() => setRefreshing(false), 1200);
+    window.requestAnimationFrame(() => {
+      setTimeout(() => setRefreshing(false), 1200);
+    });
   };
 
+  // Header icon cluster (blue pulse dot + road emoji)
   const HeaderIcon = useMemo(() => (
     <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       <span style={{ width: 10, height: 10, borderRadius: 999, background: '#2563EB', boxShadow: '0 0 0 2px rgba(37,99,235,0.25)' }} />
-      <span role="img" aria-label="steering wheel">🛣️</span>
+      <span role="img" aria-label="road">🛣️</span>
     </span>
   ), []);
 
@@ -68,6 +71,7 @@ function App() {
             <span className="spinner" aria-hidden="true" />
             <span>Refresh</span>
           </button>
+
           <div aria-label="City Selector" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span role="img" aria-label="city" title="City">🏙️</span>
             <label htmlFor="city-select" style={{ fontSize: 12, color: '#374151' }}>City</label>
@@ -89,9 +93,11 @@ function App() {
               <option value="Delhi">Delhi</option>
             </select>
           </div>
+
           <span style={{ fontSize: 12, color: '#374151' }}>
             <span role="img" aria-label="api" title="API">🔌</span> API: {apiBase || 'same-origin'}
           </span>
+
           <button
             className="btn"
             onClick={toggleTheme}
@@ -127,7 +133,10 @@ function App() {
       </aside>
 
       <main className="main">
-        <div className={`view-transition ${entered ? 'entered' : ''}`}>
+        <div
+          className={`view-transition ${entered ? 'entered' : ''}`}
+          aria-busy={view === 'map' && refreshing ? 'true' : undefined}
+        >
           {view === 'map'
             ? <MapView city={city} refreshKey={refreshKey} />
             : <Analytics city={city} />}

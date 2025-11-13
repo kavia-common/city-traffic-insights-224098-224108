@@ -104,7 +104,28 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
 
   return (
     <div>
-      <div className="card map-container" aria-busy={loading}>
+      <div className="card map-container" aria-busy={loading ? 'true' : undefined}>
+        {/* Loading overlay avoids layout shift and indicates busy state */}
+        {loading ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'grid',
+              placeItems: 'center',
+              zIndex: 1000,
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.85)', padding: 10, borderRadius: 10, boxShadow: 'var(--shadow-sm)' }}>
+              <span className="spinner" aria-hidden="true" style={{ width: 16, height: 16, border: '2px solid rgba(0,0,0,0.2)', borderTopColor: 'var(--color-primary)', borderRadius: 999, animation: 'spin 0.8s linear infinite' }} />
+              <span>Loading live map…</span>
+            </div>
+          </div>
+        ) : null}
+
         <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }}>
           <RecenterOnCity center={center} />
           <TileLayer
@@ -150,7 +171,7 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
         </div>
       ) : null}
 
-      <div className="legend">
+      <div className="legend" aria-label="Map legend">
         <div className="item">
           <span className="dot" style={{ background: 'rgb(0,180,80)' }}></span>
           Low congestion

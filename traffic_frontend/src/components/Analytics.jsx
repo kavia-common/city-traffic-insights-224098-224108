@@ -20,11 +20,13 @@ export default function Analytics({ city = 'Bangalore' }) {
   const [history, setHistory] = useState([]);
   const [pred, setPred] = useState([]);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
+        setLoading(true);
         const h = await fetchTrafficHistory(from, to, city); // normalized: { points: [{t, congestion}] }
         const p = await fetchTrafficPrediction(30, city);    // normalized: { points: [{t, congestion}] }
         if (!mounted) return;
@@ -44,10 +46,12 @@ export default function Analytics({ city = 'Bangalore' }) {
         })));
 
         setError('');
+        setLoading(false);
       } catch (e) {
         setHistory([]);
         setPred([]);
         setError('Failed to load analytics data');
+        setLoading(false);
       }
     };
     load();
@@ -66,9 +70,27 @@ export default function Analytics({ city = 'Bangalore' }) {
         </div>
       ) : null}
 
-      <div className="card" style={{ padding: 16 }}>
+      <div className="card" style={{ padding: 16 }} aria-busy={loading ? 'true' : undefined}>
         <h3 style={{ margin: '0 0 8px 0', color: '#2563EB' }}>Historical Congestion (Last 60 min) — {city}</h3>
-        <div style={{ height: 280 }}>
+        <div style={{ height: 280, position: 'relative' }}>
+          {loading ? (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                zIndex: 1,
+                background: 'rgba(255,255,255,0.6)',
+                borderRadius: 10
+              }}
+            >
+              <span className="spinner" aria-hidden="true" style={{ width: 16, height: 16, border: '2px solid rgba(0,0,0,0.2)', borderTopColor: 'var(--color-primary)', borderRadius: 999, animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ marginLeft: 8 }}>Loading…</span>
+            </div>
+          ) : null}
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={history}>
               <defs>

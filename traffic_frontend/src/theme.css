@@ -176,6 +176,7 @@ body {
   transform: translateY(0);
 }
 
+/* Map and utility sections */
 .legend {
   display: flex;
   gap: 12px;
@@ -197,11 +198,24 @@ body {
 }
 
 .map-container {
+  position: relative; /* to allow loading overlay */
   height: calc(100vh - 64px - 32px);
   min-height: 420px;
   border-radius: var(--radius);
   overflow: hidden;
 }
+
+/* Simple utilities (no Tailwind) */
+.hidden { display: none !important; }
+.flex { display: flex; }
+.grid { display: grid; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.p-2 { padding: 8px; }
+.p-3 { padding: 12px; }
+.p-4 { padding: 16px; }
 
 .stats-row {
   display: grid;

@@ -72,6 +72,40 @@ Components render percentages by multiplying by 100; they do not perform their o
 - Analytics shows a friendly message when history/prediction are empty.
 - Errors are surfaced via accessible alerts.
 
+## Deployment
+
+This app is a standard Create React App build.
+
+- Build: `npm run build` produces a `build/` directory with static assets.
+
+### Deploy to Vercel
+
+1. Create a new Vercel project and import this repository.
+2. Framework preset: Create React App (or Other).
+3. Build command: `npm run build`
+4. Output directory: `build`
+5. Environment variables (Project Settings -> Environment Variables):
+   - REACT_APP_API_BASE: set to your backend URL, e.g. https://your-backend.example.com
+6. Redeploy. The frontend will call the backend using REACT_APP_API_BASE.
+
+Note: For local previews, use Preview Environment Variables in Vercel as well.
+
+### Deploy to Render or Railway
+
+Both platforms can serve static sites and a separate backend service.
+
+- Frontend (Static site):
+  - Build command: `npm run build`
+  - Publish directory: `build`
+  - Environment:
+    - REACT_APP_API_BASE=https://your-backend.onrender.com (or Railway URL)
+
+- Backend (Node service):
+  - Ensure CORS allows the frontend origin.
+  - Expose /api/traffic/* endpoints matching OpenAPI.
+
+Verify the app via the deployed frontend URL; the API base is shown in the header for quick validation.
+
 ## Scripts
 
 - npm start - start dev server

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fetchLive } from '../services/api';
@@ -18,6 +18,7 @@ const CITY_CENTERS = {
  * - incident points as circle markers
  *
  * Polls the backend every 5 seconds to simulate live updates and refreshes when city changes.
+ * Also supports a temporary diagnostics console logger which auto-disables after 60s.
  * @param {{ city: "Bangalore" | "Mumbai" | "Delhi", refreshKey?: number }} props
  */
 export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
@@ -27,9 +28,59 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
 
   // Diagnostics state: last update timestamp and a toggle to display
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [showDiagnostics] = useState(true); // could be wired to a feature flag if needed
+  const [showDiagnostics] = useState(true); // UI panel visibility
+
+  // Temporary console logging window control (60s)
+  const [loggingActive, setLoggingActive] = useState(false);
+  const disableTimerRef = useRef(null);
+
+  // Activate logging window and schedule auto-disable.
+  const startDiagnosticsLoggingWindow = () => {
+    setLoggingActive(true);
+    if (disableTimerRef.current) {
+      clearTimeout(disableTimerRef.current);
+    }
+    disableTimerRef.current = setTimeout(() => {
+      setLoggingActive(false);
+      disableTimerRef.current = null;
+    }, 60_000);
+  };
+
+  // Start logging window on initial mount
+  useEffect(() => {
+    startDiagnosticsLoggingWindow();
+    return () => {
+      if (disableTimerRef.current) {
+        clearTimeout(disableTimerRef.current);
+        disableTimerRef.current = null;
+      }
+    };
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const center = useMemo(() => CITY_CENTERS[city] || CITY_CENTERS.Bangalore, [city]);
+
+  // Helper to emit a concise console diagnostics line when enabled.
+  const logDiagnostics = (data) => {
+    if (!loggingActive || !data || !Array.isArray(data.segments)) return;
+    const count = data.segments.length;
+    const first = count > 0 ? data.segments[0] : null;
+    const sample = first
+      ? {
+          id: first.id,
+          coordsSample: Array.isArray(first.coords) && first.coords.length > 0 ? first.coords[0] : null,
+          intensity: first.intensity,
+        }
+      : 'no-segments';
+    // eslint-disable-next-line no-console
+    console.log('[LiveMap Diagnostics]', {
+      city,
+      segments: count,
+      sample,
+      ts: new Date().toISOString(),
+    });
+  };
 
   useEffect(() => {
     // Poll every 5s; abort in-flight on unmount or city change
@@ -45,11 +96,8 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
         setError('');
         setLoading(false);
         setLastUpdated(new Date());
-        if (showDiagnostics && data && Array.isArray(data.segments)) {
-          // Optional console log guard
-          // eslint-disable-next-line no-console
-          console.log('[Diagnostics] segmentsCount:', data.segments.length);
-        }
+        // After each successful fetch, emit diagnostics if active
+        logDiagnostics(data);
       } catch (e) {
         if (!mounted) return;
         if (e.code === 'ABORTED') {
@@ -71,7 +119,7 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
       clearInterval(timer);
       controller.abort();
     };
-  }, [city, showDiagnostics]);
+  }, [city, loggingActive]); // depend on loggingActive so closure sees latest
 
   // Immediate manual refresh when refreshKey changes
   useEffect(() => {
@@ -87,10 +135,8 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
         setError('');
         setLoading(false);
         setLastUpdated(new Date());
-        if (showDiagnostics && data && Array.isArray(data.segments)) {
-          // eslint-disable-next-line no-console
-          console.log('[Diagnostics] segmentsCount:', data.segments.length);
-        }
+        // Emit diagnostics if active
+        logDiagnostics(data);
       } catch (e) {
         if (!mounted) return;
         if (e.code === 'ABORTED') return;
@@ -101,15 +147,16 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
       }
     };
 
-    // only run when refreshKey bumps
+    // Start a new 60s logging window when user clicks Refresh (refreshKey bumps)
     if (refreshKey >= 0) {
+      startDiagnosticsLoggingWindow();
       loadNow();
     }
     return () => {
       mounted = false;
       controller.abort();
     };
-  }, [refreshKey, city, showDiagnostics]);
+  }, [refreshKey, city]); // loggingActive is read via function, not required here
 
   const segments = live?.segments || []; // normalized
   const incidents = live?.incidents || []; // normalized

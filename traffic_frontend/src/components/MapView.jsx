@@ -25,6 +25,10 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Diagnostics state: last update timestamp and a toggle to display
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [showDiagnostics] = useState(true); // could be wired to a feature flag if needed
+
   const center = useMemo(() => CITY_CENTERS[city] || CITY_CENTERS.Bangalore, [city]);
 
   useEffect(() => {
@@ -40,6 +44,12 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
         setLive(data || { segments: [], incidents: [] });
         setError('');
         setLoading(false);
+        setLastUpdated(new Date());
+        if (showDiagnostics && data && Array.isArray(data.segments)) {
+          // Optional console log guard
+          // eslint-disable-next-line no-console
+          console.log('[Diagnostics] segmentsCount:', data.segments.length);
+        }
       } catch (e) {
         if (!mounted) return;
         if (e.code === 'ABORTED') {
@@ -48,6 +58,7 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
         setLive({ segments: [], incidents: [] });
         setError(e?.message || 'Failed to load live traffic');
         setLoading(false);
+        setLastUpdated(new Date());
       }
     };
 
@@ -60,7 +71,7 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
       clearInterval(timer);
       controller.abort();
     };
-  }, [city]);
+  }, [city, showDiagnostics]);
 
   // Immediate manual refresh when refreshKey changes
   useEffect(() => {
@@ -75,12 +86,18 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
         setLive(data || { segments: [], incidents: [] });
         setError('');
         setLoading(false);
+        setLastUpdated(new Date());
+        if (showDiagnostics && data && Array.isArray(data.segments)) {
+          // eslint-disable-next-line no-console
+          console.log('[Diagnostics] segmentsCount:', data.segments.length);
+        }
       } catch (e) {
         if (!mounted) return;
         if (e.code === 'ABORTED') return;
         setLive({ segments: [], incidents: [] });
         setError(e?.message || 'Failed to load live traffic');
         setLoading(false);
+        setLastUpdated(new Date());
       }
     };
 
@@ -92,7 +109,7 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
       mounted = false;
       controller.abort();
     };
-  }, [refreshKey, city]);
+  }, [refreshKey, city, showDiagnostics]);
 
   const segments = live?.segments || []; // normalized
   const incidents = live?.incidents || []; // normalized
@@ -114,6 +131,40 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
   }
 
   const isEmpty = segments.length === 0 && incidents.length === 0;
+
+  // Render the lightweight diagnostics panel (bottom-right over the map)
+  const Diagnostics = () => {
+    if (!showDiagnostics) return null;
+    const ts = lastUpdated
+      ? new Date(lastUpdated).toLocaleTimeString()
+      : '—';
+    return (
+      <div
+        aria-label="Diagnostics"
+        style={{
+          position: 'absolute',
+          right: 12,
+          bottom: 12,
+          zIndex: 1100,
+          background: 'rgba(255,255,255,0.9)',
+          color: 'var(--color-text)',
+          border: '1px solid rgba(0,0,0,0.06)',
+          borderRadius: 10,
+          boxShadow: 'var(--shadow-sm)',
+          padding: '6px 10px',
+          fontSize: 12,
+          lineHeight: 1.3,
+          display: 'inline-flex',
+          flexDirection: 'column',
+          gap: 2,
+          pointerEvents: 'none' // non-intrusive; avoids blocking map interactions
+        }}
+      >
+        <span><strong>segments</strong>: {segments.length}</span>
+        <span><strong>updated</strong>: {ts}</span>
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -199,6 +250,9 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
               </Tooltip>
             </CircleMarker>
           ))}
+
+          {/* Diagnostics overlay */}
+          <Diagnostics />
         </MapContainer>
       </div>
 

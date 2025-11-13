@@ -28,57 +28,70 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
   const center = useMemo(() => CITY_CENTERS[city] || CITY_CENTERS.Bangalore, [city]);
 
   useEffect(() => {
+    // Poll every 5s; abort in-flight on unmount or city change
     let mounted = true;
     let timer;
+    let controller = new AbortController();
+
     const load = async () => {
       try {
-        const data = await fetchLiveTraffic(city); // already normalized
-        if (mounted) {
-          setLive(data || { segments: [], incidents: [] });
-          setError('');
-          setLoading(false);
-        }
+        const data = await fetchLiveTraffic(city, { signal: controller.signal }); // pass abort signal
+        if (!mounted) return;
+        setLive(data || { segments: [], incidents: [] });
+        setError('');
+        setLoading(false);
       } catch (e) {
-        if (mounted) {
-          setLive({ segments: [], incidents: [] });
-          setError('Failed to load live traffic');
-          setLoading(false);
+        if (!mounted) return;
+        if (e.code === 'ABORTED') {
+          return; // ignore aborted requests
         }
+        setLive({ segments: [], incidents: [] });
+        setError(e?.message || 'Failed to load live traffic');
+        setLoading(false);
       }
     };
+
+    setLoading(true);
     load();
     timer = setInterval(load, 5000);
+
     return () => {
       mounted = false;
       clearInterval(timer);
+      controller.abort();
     };
   }, [city]);
 
   // Immediate manual refresh when refreshKey changes
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
+
     const loadNow = async () => {
       try {
         setLoading(true);
-        const data = await fetchLiveTraffic(city);
-        if (mounted) {
-          setLive(data || { segments: [], incidents: [] });
-          setError('');
-          setLoading(false);
-        }
+        const data = await fetchLiveTraffic(city, { signal: controller.signal });
+        if (!mounted) return;
+        setLive(data || { segments: [], incidents: [] });
+        setError('');
+        setLoading(false);
       } catch (e) {
-        if (mounted) {
-          setLive({ segments: [], incidents: [] });
-          setError('Failed to load live traffic');
-          setLoading(false);
-        }
+        if (!mounted) return;
+        if (e.code === 'ABORTED') return;
+        setLive({ segments: [], incidents: [] });
+        setError(e?.message || 'Failed to load live traffic');
+        setLoading(false);
       }
     };
+
     // only run when refreshKey bumps
     if (refreshKey >= 0) {
       loadNow();
     }
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
   }, [refreshKey, city]);
 
   const segments = live?.segments || []; // normalized
@@ -104,12 +117,15 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
 
   return (
     <div>
-      <div className="card map-container" aria-busy={loading ? 'true' : undefined}>
-        {/* Loading overlay avoids layout shift and indicates busy state */}
+      <div
+        className="card map-container"
+        aria-busy={loading ? 'true' : undefined}
+        aria-live="polite"
+      >
         {loading ? (
           <div
             role="status"
-            aria-live="polite"
+            aria-label="Loading live traffic data"
             style={{
               position: 'absolute',
               inset: 0,
@@ -119,8 +135,29 @@ export default function MapView({ city = 'Bangalore', refreshKey = 0 }) {
               pointerEvents: 'none',
             }}
           >
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.85)', padding: 10, borderRadius: 10, boxShadow: 'var(--shadow-sm)' }}>
-              <span className="spinner" aria-hidden="true" style={{ width: 16, height: 16, border: '2px solid rgba(0,0,0,0.2)', borderTopColor: 'var(--color-primary)', borderRadius: 999, animation: 'spin 0.8s linear infinite' }} />
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                background: 'rgba(255,255,255,0.85)',
+                padding: 10,
+                borderRadius: 10,
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <span
+                className="spinner"
+                aria-hidden="true"
+                style={{
+                  width: 16,
+                  height: 16,
+                  border: '2px solid rgba(0,0,0,0.2)',
+                  borderTopColor: 'var(--color-primary)',
+                  borderRadius: 999,
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
               <span>Loading live map…</span>
             </div>
           </div>

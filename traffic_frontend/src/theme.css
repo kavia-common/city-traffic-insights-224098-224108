@@ -125,6 +125,10 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+/* Fixed height helper for cards that should not shift layout */
+.card-fixed-280 { height: 280px; }
+.card-fixed-260 { height: 260px; }
+
 .btn {
   background: var(--color-primary);
   border: none;

@@ -22,34 +22,65 @@ export const getApiBaseUrl = () => {
 };
 
 async function safeFetchJson(path, options = {}) {
+  /**
+   * Fetch helper that:
+   * - builds absolute URL from base
+   * - returns parsed JSON or text
+   * - throws a normalized Error with status/code/message for consumers
+   * - supports AbortController via options.signal
+   */
   const base = getApiBaseUrl();
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
 
   try {
     const res = await fetch(url, {
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       ...options,
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Request failed: ${res.status} ${res.statusText} - ${text}`);
-    }
+
     const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      return await res.json();
+    const tryParse = async () => {
+      if (contentType.includes('application/json')) {
+        return res.json();
+      }
+      try {
+        return await res.json();
+      } catch {
+        try {
+          return await res.text();
+        } catch {
+          return null;
+        }
+      }
+    };
+
+    if (!res.ok) {
+      const body = await tryParse();
+      const err = new Error(
+        body?.error?.message ||
+          (typeof body === 'string' && body) ||
+          `Request failed: ${res.status} ${res.statusText}`
+      );
+      err.status = res.status;
+      err.code = body?.error?.code || 'HTTP_ERROR';
+      err.details = body?.error?.details || body;
+      throw err;
     }
-    // Try parse json anyway, else return text
-    try {
-      return await res.json();
-    } catch {
-      return await res.text();
-    }
+
+    return await tryParse();
   } catch (err) {
+    // Normalize fetch abort and network failures
+    const e = err instanceof Error ? err : new Error(String(err));
+    if (e.name === 'AbortError') {
+      e.code = 'ABORTED';
+    } else if (!e.status) {
+      e.code = e.code || 'NETWORK_ERROR';
+    }
     // eslint-disable-next-line no-console
-    console.error('API error', { path, err: err?.message });
-    throw err;
+    console.error('API error', { path, code: e.code, message: e.message });
+    throw e;
   }
 }
 

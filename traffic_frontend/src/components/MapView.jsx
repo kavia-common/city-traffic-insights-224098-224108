@@ -1,30 +1,38 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fetchLiveTraffic } from '../services/api';
+
+// Helper to map city to center coordinates
+const CITY_CENTERS = {
+  Bangalore: { lat: 12.9716, lng: 77.5946 },
+  Mumbai: { lat: 19.0760, lng: 72.8777 },
+  Delhi: { lat: 28.6139, lng: 77.2090 },
+};
 
 // PUBLIC_INTERFACE
 /**
  * Live traffic map view.
- * Renders a Leaflet map centered on a default city location and overlays:
+ * Renders a Leaflet map centered on selected city and overlays:
  * - congested segments as polylines with color by intensity
  * - incident points as circle markers
  *
- * Polls the backend every 5 seconds to simulate live updates.
+ * Polls the backend every 5 seconds to simulate live updates and refreshes when city changes.
+ * @param {{ city: "Bangalore" | "Mumbai" | "Delhi" }} props
  */
-export default function MapView() {
+export default function MapView({ city = 'Bangalore' }) {
   const [live, setLive] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const center = useMemo(() => ({ lat: 12.9716, lng: 77.5946 }), []); // Bangalore default
+  const center = useMemo(() => CITY_CENTERS[city] || CITY_CENTERS.Bangalore, [city]);
 
   useEffect(() => {
     let mounted = true;
     let timer;
     const load = async () => {
       try {
-        const data = await fetchLiveTraffic();
+        const data = await fetchLiveTraffic(city);
         if (mounted) {
           setLive(data);
           setError('');
@@ -43,7 +51,7 @@ export default function MapView() {
       mounted = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [city]);
 
   const segments = live?.segments || []; // [{id, coords:[[lat,lng],...], intensity:0-1}]
   const incidents = live?.incidents || []; // [{id, lat, lng, severity:1-5, label}]
@@ -55,10 +63,20 @@ export default function MapView() {
     return `rgb(${r},${g},80)`;
   };
 
+  // Component to recenter map when city changes
+  function RecenterOnCity({ center }) {
+    const map = useMap();
+    useEffect(() => {
+      map.setView(center, 12, { animate: true });
+    }, [center, map]);
+    return null;
+  }
+
   return (
     <div>
       <div className="card map-container" aria-busy={loading}>
         <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }}>
+          <RecenterOnCity center={center} />
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -108,6 +126,13 @@ export default function MapView() {
         <div className="item">
           <span className="dot" style={{ background: '#EF4444' }}></span>
           Incidents
+        </div>
+      </div>
+
+      <div className="stats-row">
+        <div className="card stat">
+          <h4>Current City</h4>
+          <div className="value">{city}</div>
         </div>
       </div>
 

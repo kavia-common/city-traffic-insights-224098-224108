@@ -54,6 +54,14 @@ body {
   align-items: center;
   gap: 12px;
 }
+.header-actions select {
+  outline: none;
+  transition: all 0.2s ease;
+}
+.header-actions select:focus {
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(37,99,235,0.35);
+}
 
 .sidebar {
   grid-area: sidebar;

@@ -9,6 +9,7 @@ import { getApiBaseUrl } from './services/api';
 function App() {
   const [theme, setTheme] = useState('light');
   const [view, setView] = useState('map'); // 'map' | 'analytics'
+  const [city, setCity] = useState('Bangalore'); // default city
 
   // Apply theme to document element for optional dark/light variations
   useEffect(() => {
@@ -32,6 +33,26 @@ function App() {
           Traffic Insights
         </div>
         <div className="header-actions">
+          <div aria-label="City Selector" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label htmlFor="city-select" style={{ fontSize: 12, color: '#374151' }}>City</label>
+            <select
+              id="city-select"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 10,
+                border: '1px solid rgba(0,0,0,0.12)',
+                background: '#fff',
+                color: '#111827'
+              }}
+              aria-label="Select City"
+            >
+              <option value="Bangalore">Bangalore</option>
+              <option value="Mumbai">Mumbai</option>
+              <option value="Delhi">Delhi</option>
+            </select>
+          </div>
           <span style={{ fontSize: 12, color: '#374151' }}>API: {apiBase || 'same-origin'}</span>
           <button 
             className="btn"
@@ -61,7 +82,7 @@ function App() {
       </aside>
 
       <main className="main">
-        {view === 'map' ? <MapView /> : <Analytics />}
+        {view === 'map' ? <MapView city={city} /> : <Analytics city={city} />}
       </main>
     </div>
   );

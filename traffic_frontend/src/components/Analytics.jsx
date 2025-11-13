@@ -9,8 +9,9 @@ import { fetchTrafficHistory, fetchTrafficPrediction } from '../services/api';
  * Analytics view for historical and predicted congestion.
  * - History line/area chart (avg congestion over time)
  * - Prediction bar/line for short-term horizon
+ * @param {{ city: "Bangalore" | "Mumbai" | "Delhi" }} props
  */
-export default function Analytics() {
+export default function Analytics({ city = 'Bangalore' }) {
   const [from, to] = useMemo(() => {
     const end = new Date();
     const start = new Date(end.getTime() - 1000 * 60 * 60); // last 60 minutes
@@ -24,8 +25,8 @@ export default function Analytics() {
     let mounted = true;
     const load = async () => {
       try {
-        const h = await fetchTrafficHistory(from, to);
-        const p = await fetchTrafficPrediction(30);
+        const h = await fetchTrafficHistory(from, to, city);
+        const p = await fetchTrafficPrediction(30, city);
         if (!mounted) return;
 
         // Normalize expected structures
@@ -53,7 +54,7 @@ export default function Analytics() {
     return () => {
       mounted = false;
     };
-  }, [from, to]);
+  }, [from, to, city]);
 
   return (
     <div className="analytics">
@@ -64,7 +65,7 @@ export default function Analytics() {
       ) : null}
 
       <div className="card" style={{ padding: 16 }}>
-        <h3 style={{ margin: '0 0 8px 0', color: '#2563EB' }}>Historical Congestion (Last 60 min)</h3>
+        <h3 style={{ margin: '0 0 8px 0', color: '#2563EB' }}>Historical Congestion (Last 60 min) — {city}</h3>
         <div style={{ height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={history}>
@@ -85,7 +86,7 @@ export default function Analytics() {
       </div>
 
       <div className="card" style={{ padding: 16, marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 8px 0', color: '#F59E0B' }}>Predicted Congestion (Next 30 min)</h3>
+        <h3 style={{ margin: '0 0 8px 0', color: '#F59E0B' }}>Predicted Congestion (Next 30 min) — {city}</h3>
         <div style={{ height: 260 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={pred}>
@@ -101,7 +102,7 @@ export default function Analytics() {
       </div>
 
       <div className="card" style={{ padding: 16, marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 8px 0' }}>Overlay: History vs Prediction</h3>
+        <h3 style={{ margin: '0 0 8px 0' }}>Overlay: History vs Prediction — {city}</h3>
         <div style={{ height: 260 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart

@@ -35,11 +35,30 @@ Note: Do not commit real environment files. Only document variable names.
 - Leaflet + react-leaflet for base map
 - Recharts for charts
 
-## Notes
+## Client-side Normalized API Shapes
 
-This app expects the backend to provide:
-- `GET /api/traffic/live` -> { segments: [{id, coords:[[lat,lng],...], intensity:0-1}], incidents: [{id, lat, lng, severity, label}] }
-- `GET /api/traffic/history?from&to` -> { points: [{ t, congestion (0-1) }] }
-- `GET /api/traffic/predict?horizonMinutes` -> { points: [{ t, congestion (0-1) }] }
+The API client (src/services/api.js) normalizes all responses to stable shapes so UI components are decoupled from backend variations (simulated, TomTom, DB aggregation):
 
-The exact shape may vary; the UI normalizes common field names.
+- Live traffic:
+  - fetchLiveTraffic(city) -> 
+    { 
+      segments: [{ id, coords: [[lat, lng], ...], intensity }], 
+      incidents: [{ id, lat, lng, severity, label }] 
+    }
+- History:
+  - fetchTrafficHistory(from, to, city) -> { points: [{ t, congestion }] } where congestion is 0..1
+- Prediction:
+  - fetchTrafficPrediction(horizonMinutes, city) -> { points: [{ t, congestion }] } where congestion is 0..1
+
+Components render percentages by multiplying by 100; they no longer perform their own normalization.
+
+## City propagation
+
+All requests automatically append `?city=<SelectedCity>` to ensure multi-city support. The selected city is controlled in App.js and passed down to MapView and Analytics.
+
+## Empty/real-data fallback
+
+- Map renders an informational card when there are no segments/incidents.
+- Analytics shows a friendly message when history/prediction are empty.
+- Errors are surfaced via accessible alerts.
+

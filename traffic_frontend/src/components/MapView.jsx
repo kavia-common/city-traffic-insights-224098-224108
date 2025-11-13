@@ -21,7 +21,7 @@ const CITY_CENTERS = {
  * @param {{ city: "Bangalore" | "Mumbai" | "Delhi" }} props
  */
 export default function MapView({ city = 'Bangalore' }) {
-  const [live, setLive] = useState(null);
+  const [live, setLive] = useState({ segments: [], incidents: [] });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -32,14 +32,15 @@ export default function MapView({ city = 'Bangalore' }) {
     let timer;
     const load = async () => {
       try {
-        const data = await fetchLiveTraffic(city);
+        const data = await fetchLiveTraffic(city); // already normalized
         if (mounted) {
-          setLive(data);
+          setLive(data || { segments: [], incidents: [] });
           setError('');
           setLoading(false);
         }
       } catch (e) {
         if (mounted) {
+          setLive({ segments: [], incidents: [] });
           setError('Failed to load live traffic');
           setLoading(false);
         }
@@ -53,8 +54,8 @@ export default function MapView({ city = 'Bangalore' }) {
     };
   }, [city]);
 
-  const segments = live?.segments || []; // [{id, coords:[[lat,lng],...], intensity:0-1}]
-  const incidents = live?.incidents || []; // [{id, lat, lng, severity:1-5, label}]
+  const segments = live?.segments || []; // normalized
+  const incidents = live?.incidents || []; // normalized
 
   const colorForIntensity = (x) => {
     // 0 -> green, 1 -> red
@@ -71,6 +72,8 @@ export default function MapView({ city = 'Bangalore' }) {
     }, [center, map]);
     return null;
   }
+
+  const isEmpty = segments.length === 0 && incidents.length === 0;
 
   return (
     <div>
@@ -113,6 +116,12 @@ export default function MapView({ city = 'Bangalore' }) {
           ))}
         </MapContainer>
       </div>
+
+      {isEmpty && !loading && !error ? (
+        <div className="card" style={{ padding: 12, marginTop: 8, color: '#374151' }}>
+          No live overlays for {city} yet. Waiting for data...
+        </div>
+      ) : null}
 
       <div className="legend">
         <div className="item">

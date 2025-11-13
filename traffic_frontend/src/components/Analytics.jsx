@@ -25,28 +25,28 @@ export default function Analytics({ city = 'Bangalore' }) {
     let mounted = true;
     const load = async () => {
       try {
-        const h = await fetchTrafficHistory(from, to, city);
-        const p = await fetchTrafficPrediction(30, city);
+        const h = await fetchTrafficHistory(from, to, city); // normalized: { points: [{t, congestion}] }
+        const p = await fetchTrafficPrediction(30, city);    // normalized: { points: [{t, congestion}] }
         if (!mounted) return;
 
-        // Normalize expected structures
         const historyPoints = Array.isArray(h?.points) ? h.points : [];
         const predictionPoints = Array.isArray(p?.points) ? p.points : [];
 
-        setHistory(
-          historyPoints.map((pt) => ({
-            t: pt.t || pt.time || pt.timestamp,
-            congestion: typeof pt.congestion === 'number' ? Math.round(pt.congestion * 100) : pt.value ?? 0,
-          }))
-        );
-        setPred(
-          predictionPoints.map((pt) => ({
-            t: pt.t || pt.time || pt.timestamp,
-            predicted: typeof pt.congestion === 'number' ? Math.round(pt.congestion * 100) : pt.value ?? 0,
-          }))
-        );
+        // Convert 0..1 to percentage for display
+        setHistory(historyPoints.map((pt) => ({
+          t: pt.t,
+          congestion: Math.round((pt.congestion ?? 0) * 100),
+        })));
+
+        setPred(predictionPoints.map((pt) => ({
+          t: pt.t,
+          predicted: Math.round((pt.congestion ?? 0) * 100),
+        })));
+
         setError('');
       } catch (e) {
+        setHistory([]);
+        setPred([]);
         setError('Failed to load analytics data');
       }
     };
@@ -55,6 +55,8 @@ export default function Analytics({ city = 'Bangalore' }) {
       mounted = false;
     };
   }, [from, to, city]);
+
+  const noData = history.length === 0 && pred.length === 0;
 
   return (
     <div className="analytics">
@@ -119,6 +121,12 @@ export default function Analytics({ city = 'Bangalore' }) {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {noData ? (
+        <div className="card" style={{ padding: 12, marginTop: 8, color: '#374151' }}>
+          No analytics data available for {city}. Try adjusting the time window or ensure backend data ingestion.
+        </div>
+      ) : null}
     </div>
   );
 }
